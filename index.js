@@ -5,7 +5,7 @@ const connectDatabase = require('./config/database');
 
 const app = require('./app');
 
-const PORT = process.env.PORT || 6001; 
+const PORT = process.env.PORT || 4001; 
 connectDatabase();
 app.listen(PORT, () => {
   console.log(`Server is working on http://localhost:${PORT}`);
@@ -24,3 +24,4 @@ process.on('unhandledRejection', (err) => {
   console.log('Shutting down the server due to unhandled promise rejection');
   process.exit(1);
 });
+

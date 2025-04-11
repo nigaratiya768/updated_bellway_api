@@ -68,7 +68,7 @@ const ExcelUplode = async (req, res) => {
      const uniqueNewContactNos = uniqueContactNos.filter(contactNo => !existingLeads.some(lead => lead.contact_no === contactNo));
      const filteredLeadData = leadData.filter(entry => uniqueNewContactNos.includes(entry?.contact_no));
 
-
+     console.log("lead ",leadData,"filterr===", filteredLeadData);
 
     const insertedLeads = await Lead.insertMany(filteredLeadData.map(entry => ({
       full_name: entry?.full_name, 

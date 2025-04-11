@@ -6,6 +6,63 @@ const catchAsyncErrors = require("../middleware/catchAsyncErrors");
 const ErrorHander = require("../utils/errorhander");
 const { param } = require("../app");
 const SaveNotification=require("../models/websavenotification");
+const LeadApproval = require('../models/LeadApproval'); 
+// insert approved details
+
+exports.approved = async (req, res) => {
+  const { lead_id, assign_to_agent, role, user_id, status } = req.body;
+
+  try {
+     const existingLead = await LeadApproval.findOne({
+      lead_id: lead_id,
+      assign_to_agent: assign_to_agent,
+      role: role,
+      user_id: user_id
+    });
+  if (existingLead) {
+      existingLead.status = status || 'not-approved'; 
+      const updatedLead = await existingLead.save();
+
+      return res.status(200).json({
+        success: true,
+        message: "Status updated successfully",
+        data: updatedLead
+      });
+    } else {
+      // If it doesn't exist, create a new record
+      const newLeadApproval = new LeadApproval({
+        lead_id: lead_id,
+        assign_to_agent: assign_to_agent,
+        role: role,
+        user_id: user_id,
+        status: status || 'not-approved' 
+      });
+
+      const savedLead = await newLeadApproval.save();
+
+      return res.status(201).json({
+        success: true,
+        message: "Data inserted successfully",
+        data: savedLead
+      });
+    }
+
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "An error occurred while inserting or updating data",
+      error: error.message
+    });
+  }
+};
+
+exports.getApproval = async (req,res)=>{
+  const data =await LeadApproval.find();
+  console.log("data",data)
+  res.send(data)
+
+}
+
 
 /// creat followup Lead
 exports.Add_Followup_Lead = catchAsyncErrors(async (req, res, next) => {
@@ -175,6 +232,8 @@ exports.getFollowupById = catchAsyncErrors(async (req, res, next) => {
 });
 
 ///
+
+
 
 exports.getAllfollowbyidstatus = catchAsyncErrors(async (req, res, next) => {});
 

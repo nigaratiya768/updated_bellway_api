@@ -7,9 +7,10 @@ const { YearlySaleApi, YearlySaleApiForUser, YearlySaleApiForTeamLeader,
      LeadSourceOverviewApiForUser,GetCalandarData
     ,CompanyDetails,GetCompanyDetails,
     DashboardLeadCount,UnAssignedDashboardLeadCount
-    ,DashboardLeadCountOfUser,AgentWishLeadCount,AgentWishLeadCount1,DashboardLeadCountOfUserByTeamLeader,
+    ,DashboardLeadCountOfUser,AgentWishLeadCount,AgentWishLeadCount1,DashboardLeadCountOfUserByTeamLeader,DashboardLeadCountOfUserByGroupLeader,
     RealestateApi ,MagicbricksApi,AcresApi, bwnotification, Businesswtspmessage,
     IncomeGraphOverviewForTeamLeader,IncomeGraphOverviewForUser,IncomeGraphOverview,GetCalandarDataByUser,GetCalandarDataByTeamLeader
+    ,LeadSourceOverviewApiForGroupLeader,YearlySaleApiForGroupLeader
 } = require('../controllers/genralApiController');
 const {LeadProductServiceOverviewApi}  =require('../controllers/allReportController')
 
@@ -17,11 +18,13 @@ const router=express.Router();
 
 router.route("/YearlySaleApi").get(YearlySaleApi);  //for Admin
 router.route("/YearlySaleApiForTeamLeader").post(YearlySaleApiForTeamLeader);  //for TeamLeader
+router.route("/YearlySaleApiForGroupLeader").post(YearlySaleApiForGroupLeader);  //for TeamLeader
 router.route("/YearlySaleApiForUser").post(YearlySaleApiForUser);  //for User
 
 
 router.route("/lead_source_overview_api").get(LeadSourceOverviewApi); //for Admin
 router.route("/LeadSourceOverviewApiForTeamLeader").post(LeadSourceOverviewApiForTeamLeader); //for Admin
+router.route("/LeadSourceOverviewApiForGroupLeader").post(LeadSourceOverviewApiForGroupLeader); //for Admin
 router.route("/LeadSourceOverviewApiForUser").post(LeadSourceOverviewApiForUser); //for Admin
 
 
@@ -42,6 +45,7 @@ router.route("/GetCompanyDetails").get(GetCompanyDetails);
 router.route("/DashboardLeadCount").get(DashboardLeadCount);  
 router.route("/DashboardLeadCountOfUser").post(DashboardLeadCountOfUser);  
 router.route("/DashboardLeadCountOfUserByTeamLeader").post(DashboardLeadCountOfUserByTeamLeader);  
+router.route("/DashboardLeadCountOfUserByGroupLeader").post(DashboardLeadCountOfUserByGroupLeader);  
 
 
 router.route("/UnAssignedDashboardLeadCount").get(UnAssignedDashboardLeadCount);

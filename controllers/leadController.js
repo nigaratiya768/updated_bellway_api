@@ -1,7 +1,7 @@
 const Lead = require("../models/leadModel");
 const agent = require("../models/agentModel");
 const Agentss = require("../models/agentModel");
-const { ObjectId } = require('mongoose').Types;
+const { ObjectId } = require("mongoose").Types;
 const catchAsyncErrors = require("../middleware/catchAsyncErrors");
 const ErrorHander = require("../utils/errorhander");
 //const useragent = require('useragent');
@@ -11,15 +11,17 @@ const useragent = require("express-useragent");
 const multer = require("multer");
 const upload = multer();
 const xlsx = require("xlsx");
-const FollowupLead = require('../models/followupModel');
-const LeadAttechment = require('../models/leadattechmentModel')
+const FollowupLead = require("../models/followupModel");
+const LeadAttechment = require("../models/leadattechmentModel");
+
 exports.Add_Lead = catchAsyncErrors(async (req, res, next) => {
   const { contact_no } = req.body;
   const existingLead = await Lead.findOne({ contact_no });
-if (existingLead) { 
+  if (existingLead) {
     return res.status(400).json({
       success: false,
-      message: "Contact number already exists. Please provide a unique contact number.",
+      message:
+        "Contact number already exists. Please provide a unique contact number.",
     });
   }
   const lead = await Lead.create(req.body);
@@ -31,12 +33,15 @@ if (existingLead) {
   const followup_desc = lead.description;
 
   const update_data = {
-    assign_to_agent: assign_to_agent, commented_by: commented_by, lead_id: lead_id,
-    followup_status_id: followup_status_id, followup_date: followup_date,
-    followup_desc: followup_desc
+    assign_to_agent: assign_to_agent,
+    commented_by: commented_by,
+    lead_id: lead_id,
+    followup_status_id: followup_status_id,
+    followup_date: followup_date,
+    followup_desc: followup_desc,
   };
-  const followup_lead = await FollowupLead.create(update_data); 
-    console.log(followup_lead);
+  const followup_lead = await FollowupLead.create(update_data);
+  console.log(followup_lead);
 
   res.status(201).json({
     success: true,
@@ -45,10 +50,158 @@ if (existingLead) {
     followup_lead,
   });
 });
+////// housing api
+
+exports.Add_housing_Lead = catchAsyncErrors(async (req, res, next) => {
+  try {
+    const { contact_no, full_name, email_id, description } = req.body;
+
+    if (!contact_no || !full_name || !email_id || !description) {
+      return res.status(400).json({
+        success: false,
+        message: "All fields are required.",
+      });
+    }
+
+    const recived_from = 'housing';
+    const service = '66a8e474fe247f0debc9a593'; 
+    const lead_source = '66a8e474fe247f0debc9a593';  
+
+    const data = {
+      recived_from,
+      service,  
+      lead_source,  
+      ...req.body,
+    };
+
+    const lead = await Lead.create(data);
+
+    res.status(201).json({
+      success: true,
+      message: "Lead has been added successfully",
+      lead,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+
+exports.getBestAndWorstPerformanceService = catchAsyncErrors(
+  async (req, res, next) => {
+    const stats = await Lead.aggregate([
+      {
+        $facet: {
+          best: [
+            { $match: { disposition: "Interested" } }, // Filter for Interested
+            {
+              $group: {
+                _id: "$service",
+                count: { $sum: 1 },
+              },
+            }, // Group by service
+            { $sort: { count: -1 } }, // Sort by count descending
+            { $limit: 1 }, // Limit to get the top result
+            {
+              $lookup: {
+                from: "crm_product_services",
+                localField: "_id",
+                foreignField: "_id",
+                pipeline: [
+                  {
+                    $project: {
+                      product_service_name: 1,
+                    },
+                  },
+                ],
+                as: "result",
+              },
+            },
+            {
+              $addFields: {
+                product_service_name: {
+                  $arrayElemAt: ["$result.product_service_name", 0],
+                }, // Optimized to use $arrayElemAt for the first element
+              },
+            },
+            {
+              $project: {
+                result: 0, // Clean up the output by removing the result field
+              },
+            },
+          ],
+          worst: [
+            // { $match: { disposition: "Not Interested" } }, // Filter for Not Interested
+            {
+              $match: {
+                $or: [
+                  { disposition: "Not Interested" },
+                  { disposition: "N/A" },
+                  { disposition: null },
+                ],
+              },
+            }, // Filter for Not Interested
+            {
+              $group: {
+                _id: "$service",
+                count: { $sum: 1 },
+              },
+            }, // Group by service
+            { $sort: { count: -1 } }, // Sort by count descending
+            { $limit: 1 }, // Limit to get the top result
+            {
+              $lookup: {
+                from: "crm_product_services",
+                localField: "_id",
+                foreignField: "_id",
+                pipeline: [
+                  {
+                    $project: {
+                      product_service_name: 1,
+                    },
+                  },
+                ],
+                as: "result",
+              },
+            },
+            {
+              $addFields: {
+                product_service_name: {
+                  $arrayElemAt: ["$result.product_service_name", 0],
+                }, // Optimized to use $arrayElemAt for the first element
+              },
+            },
+            {
+              $project: {
+                result: 0, // Clean up the output by removing the result field
+              },
+            },
+          ],
+        },
+      },
+    ]);
+
+    res.status(200).json({
+      success: true,
+      stats: stats.length > 0 ? stats[0] : {},
+    });
+  }
+);
 
 //// get All Lead
 exports.getAllLead = catchAsyncErrors(async (req, res, next) => {
+  const { isHotLead = false } = req.query;
+  console.log(
+    "hot lead ",
+    isHotLead,
+    isHotLead && { disposition: "Interested" }
+  );
   const lead = await Lead.aggregate([
+    {
+      $match: {
+        ...(isHotLead && { disposition: "Interested" }),
+      },
+    },
     {
       $lookup: {
         from: "crm_agents",
@@ -142,7 +295,6 @@ exports.getAllLead = catchAsyncErrors(async (req, res, next) => {
         ],
         as: "lead_source_details",
       },
-
     },
 
     {
@@ -158,7 +310,6 @@ exports.getAllLead = catchAsyncErrors(async (req, res, next) => {
     lead,
   });
 });
-
 
 //////// get All New Lead  (For New Leads) (For Admin)
 exports.getAllNewLead = catchAsyncErrors(async (req, res, next) => {
@@ -256,9 +407,12 @@ exports.getAllNewLead = catchAsyncErrors(async (req, res, next) => {
         ],
         as: "lead_source_details",
       },
-
     },
-
+    {
+      $match: {
+        type: { $ne: "excel" }, // Filter out documents where the type is 'excel'
+      },
+    },
     {
       $sort: {
         followup_date: 1, // 1 for ascending(123) order, -1 for descending(321) order
@@ -266,21 +420,21 @@ exports.getAllNewLead = catchAsyncErrors(async (req, res, next) => {
     },
   ]);
   ////  get only first followup lead
-  const filteredLeads = [];     
+  const filteredLeads = [];
 
   for (const singleLead of lead) {
     const lead_id = singleLead?._id;
-    const leadstatusid=singleLead?.status;
-   
-     if(leadstatusid.toString()==='65a904fc4473619190494486'){
+
+    const leadstatusid = singleLead?.status;
+
+    if (leadstatusid.toString() === "65a904fc4473619190494486") {
       filteredLeads.push(singleLead);
-    }else{
+    } else {
       const count = await FollowupLead.countDocuments({ lead_id });
       if (count <= 1) {
         filteredLeads.push(singleLead);
       }
     }
-    
   }
 
   res.status(200).json({
@@ -291,7 +445,6 @@ exports.getAllNewLead = catchAsyncErrors(async (req, res, next) => {
 
 //////// get All New Lead  (For New Leads) (For Agent)
 exports.getAllNewLeadBYAgentId = catchAsyncErrors(async (req, res, next) => {
-
   const { assign_to_agent } = req.body;
   if (!assign_to_agent) {
     return next(new ErrorHander("assign_to_agent is required..!", 404));
@@ -397,7 +550,6 @@ exports.getAllNewLeadBYAgentId = catchAsyncErrors(async (req, res, next) => {
         ],
         as: "lead_source_details",
       },
-
     },
 
     {
@@ -411,16 +563,16 @@ exports.getAllNewLeadBYAgentId = catchAsyncErrors(async (req, res, next) => {
 
   for (const singleLead of lead) {
     const lead_id = singleLead?._id;
-    const leadstatusid=singleLead?.status;
-   
-    if(leadstatusid.toString()==='65a904fc4473619190494486'){
-     filteredLeads.push(singleLead);
-   }else{
-     const count = await FollowupLead.countDocuments({ lead_id });
-     if (count <= 1) {
-       filteredLeads.push(singleLead);
-     }
-   }
+    const leadstatusid = singleLead?.status;
+
+    if (leadstatusid.toString() === "65a904fc4473619190494486") {
+      filteredLeads.push(singleLead);
+    } else {
+      const count = await FollowupLead.countDocuments({ lead_id });
+      if (count <= 1) {
+        filteredLeads.push(singleLead);
+      }
+    }
   }
 
   res.status(200).json({
@@ -428,11 +580,6 @@ exports.getAllNewLeadBYAgentId = catchAsyncErrors(async (req, res, next) => {
     lead: filteredLeads,
   });
 });
-
-
-
-
-
 
 ////// get Alll lead For Followup
 exports.getAllLeadFollowup = catchAsyncErrors(async (req, res, next) => {
@@ -531,7 +678,7 @@ exports.getAllLeadFollowup = catchAsyncErrors(async (req, res, next) => {
           $nin: [
             new ObjectId("65a904e04473619190494482"),
             new ObjectId("65a904ed4473619190494484"),
-            new ObjectId("65a904fc4473619190494486")
+            new ObjectId("65a904fc4473619190494486"),
           ],
         },
       },
@@ -662,7 +809,7 @@ exports.getLeadbyagentidandwithoutstatus = catchAsyncErrors(
             $nin: [
               new ObjectId("65a904e04473619190494482"),
               new ObjectId("65a904ed4473619190494484"),
-              new ObjectId("65a904fc4473619190494486")
+              new ObjectId("65a904fc4473619190494486"),
             ],
           },
         },
@@ -809,8 +956,148 @@ exports.getLeadbyagentidandwithstatus = catchAsyncErrors(
     });
   }
 );
+/// by    juhii............
 
-////////get All Lead According to Team Leader  
+// exports.getLeadbyagentidandwithstatus = catchAsyncErrors(
+//   async (req, res, next) => {
+//     const { assign_to_agent } = req.body;
+//     if (!assign_to_agent) {
+//       return next(new ErrorHander("assign_to_agent is required..!", 404));
+//     }
+//    // juhi 
+//     const [agentsByAssigntl, agentsById] = await Promise.all([
+//       agent.find({ assigntl: assign_to_agent }),
+//       agent.find({ _id: assign_to_agent }),
+//     ]);
+
+//     // Merge the results into a single array
+//     const allAgents = [...agentsByAssigntl, ...agentsById];
+
+//     if (allAgents.length < 1) {
+//       return next(new ErrorHander("No Lead..!", 404));
+//     }
+//     const matchConditions = {
+//       assign_to_agent: {
+//         $in: allAgents.map((agent) => new ObjectId(agent._id)),
+//       },
+//     };
+// // juhi
+//     // const matchConditions = {};
+//     // const agentObjectId = new ObjectId(assign_to_agent);
+//     // matchConditions.assign_to_agent = agentObjectId;
+//     const lead = await Lead.aggregate([
+//       {
+//         $match: matchConditions,
+//       },
+
+//       {
+//         $lookup: {
+//           from: "crm_agents",
+//           let: { assign_to_agentString: "$assign_to_agent" },
+//           pipeline: [
+//             {
+//               $match: {
+//                 $expr: {
+//                   $eq: ["$_id", { $toObjectId: "$$assign_to_agentString" }],
+//                 },
+//               },
+//             },
+//             {
+//               $project: {
+//                 agent_name: 1,
+//               },
+//             },
+//           ],
+//           as: "agent_details",
+//         },
+//       },
+
+//       {
+//         $lookup: {
+//           from: "crm_product_services",
+//           let: { serviceString: "$service" },
+//           pipeline: [
+//             {
+//               $match: {
+//                 $expr: {
+//                   $eq: ["$_id", { $toObjectId: "$$serviceString" }],
+//                 },
+//               },
+//             },
+//             {
+//               $project: {
+//                 product_service_name: 1,
+//               },
+//             },
+//           ],
+//           as: "service_details",
+//         },
+//       },
+
+//       {
+//         $lookup: {
+//           from: "crm_statuses",
+//           let: { statusString: "$status" },
+//           pipeline: [
+//             {
+//               $match: {
+//                 $expr: {
+//                   $eq: ["$_id", { $toObjectId: "$$statusString" }],
+//                 },
+//               },
+//             },
+//             {
+//               $project: {
+//                 status_name: 1,
+//               },
+//             },
+//           ],
+//           as: "status_details",
+//         },
+//       },
+
+//       {
+//         $lookup: {
+//           from: "crm_lead_sources",
+//           let: { lead_sourceString: "$lead_source" },
+//           pipeline: [
+//             {
+//               $match: {
+//                 $expr: {
+//                   $eq: ["$_id", { $toObjectId: "$$lead_sourceString" }],
+//                 },
+//               },
+//             },
+//             {
+//               $project: {
+//                 lead_source_name: 1,
+//               },
+//             },
+//           ],
+//           as: "lead_source_details",
+//         },
+//       },
+
+//       {
+//         $sort: {
+//           followup_date: 1,
+//         },
+//       },
+//     ]);
+
+//     if (lead.length == 0) {
+//       return next(new ErrorHander("Lead is not Avilable of This user", 201));
+//     }
+
+//     res.status(200).json({
+//       success: true,
+
+//       lead,
+//     });
+//   }
+// );
+
+////////get All Lead According to Team Leader
 exports.getLeadbyTeamLeaderidandwithstatus = catchAsyncErrors(
   async (req, res, next) => {
     const { assign_to_agent } = req.body;
@@ -820,17 +1107,19 @@ exports.getLeadbyTeamLeaderidandwithstatus = catchAsyncErrors(
     // const allAgents = await agent.find({ assigntl: assign_to_agent });
     const [agentsByAssigntl, agentsById] = await Promise.all([
       agent.find({ assigntl: assign_to_agent }),
-      agent.find({ _id: assign_to_agent })
-  ]);
-  
-  // Merge the results into a single array
-  const allAgents = [...agentsByAssigntl, ...agentsById];
-   
+      agent.find({ _id: assign_to_agent }),
+    ]);
+
+    // Merge the results into a single array
+    const allAgents = [...agentsByAssigntl, ...agentsById];
+
     if (allAgents.length < 1) {
       return next(new ErrorHander("No Lead..!", 404));
     }
     const matchConditions = {
-      assign_to_agent: { $in: allAgents.map(agent => new ObjectId(agent._id)) }
+      assign_to_agent: {
+        $in: allAgents.map((agent) => new ObjectId(agent._id)),
+      },
     };
     const lead = await Lead.aggregate([
       {
@@ -943,9 +1232,10 @@ exports.getLeadbyTeamLeaderidandwithstatus = catchAsyncErrors(
   }
 );
 
-////////get All Lead According to Team Leader  Without Won Loss Lead
-exports.getLeadbyTeamLeaderidandwithoutstatus = catchAsyncErrors(
+// get lead According to Group Leader
+exports.getLeadbyGroupLeaderidandwithstatus = catchAsyncErrors(
   async (req, res, next) => {
+
     const { assign_to_agent } = req.body;
     if (!assign_to_agent) {
       return next(new ErrorHander("assign_to_agent is required..!", 404));
@@ -953,16 +1243,167 @@ exports.getLeadbyTeamLeaderidandwithoutstatus = catchAsyncErrors(
     // const allAgents = await agent.find({ assigntl: assign_to_agent });
     const [agentsByAssigntl, agentsById] = await Promise.all([
       agent.find({ assigntl: assign_to_agent }),
-      agent.find({ _id: assign_to_agent })
-  ]);
-  
-  // Merge the results into a single array
-  const allAgents = [...agentsByAssigntl, ...agentsById];
+      agent.find({ _id: assign_to_agent }),
+    ]);
+
+    const agentIdsByAssigntl = agentsByAssigntl.map(agent => agent._id);
+    console.log("Agents by assign_to_agent (assigntl):", agentIdsByAssigntl);
+
+    // Now, find agents whose 'assigntl' field matches any of the agent IDs in 'agentIdsByAssigntl'
+    const agentsWithMatchingAssigntl = await agent.find({
+      assigntl: { $in: agentIdsByAssigntl }
+    });
+
+    console.log("Agents with matching 'assigntl':", agentsWithMatchingAssigntl);
+
+    // // Merge the results into a single array
+    // const allAgents = [...agentsByAssigntl, ...agentsById];
+    const allAgents = [...agentsByAssigntl, ...agentsById, ...agentsWithMatchingAssigntl];
     if (allAgents.length < 1) {
       return next(new ErrorHander("No Lead..!", 404));
     }
     const matchConditions = {
-      assign_to_agent: { $in: allAgents.map(agent => new ObjectId(agent._id)) }
+      assign_to_agent: {
+        $in: allAgents.map((agent) => new ObjectId(agent._id)),
+      },
+    };
+    const lead = await Lead.aggregate([
+      {
+        $match: matchConditions,
+      },
+
+      {
+        $lookup: { 
+          from: "crm_agents",
+          let: { assign_to_agentString: "$assign_to_agent" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $eq: ["$_id", { $toObjectId: "$$assign_to_agentString" }],
+                },
+              },
+            },
+            {
+              $project: {
+                agent_name: 1,
+              },
+            },
+          ],
+          as: "agent_details",
+        },
+      },
+
+      {
+        $lookup: {
+          from: "crm_product_services",
+          let: { serviceString: "$service" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $eq: ["$_id", { $toObjectId: "$$serviceString" }],
+                },
+              },
+            },
+            {
+              $project: {
+                product_service_name: 1,
+              },
+            },
+          ],
+          as: "service_details",
+        },
+      },
+
+      {
+        $lookup: {
+          from: "crm_statuses",
+          let: { statusString: "$status" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $eq: ["$_id", { $toObjectId: "$$statusString" }],
+                },
+              },
+            },
+            {
+              $project: {
+                status_name: 1,
+              },
+            },
+          ],
+          as: "status_details",
+        },
+      },
+
+      {
+        $lookup: {
+          from: "crm_lead_sources",
+          let: { lead_sourceString: "$lead_source" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $eq: ["$_id", { $toObjectId: "$$lead_sourceString" }],
+                },
+              },
+            },
+            {
+              $project: {
+                lead_source_name: 1,
+              },
+            },
+          ],
+          as: "lead_source_details",
+        },
+      },
+
+      {
+        $sort: {
+          followup_date: 1,
+        },
+      },
+    ]);
+    console.log('Count:', lead.length);
+    if (lead.length == 0) {
+      return next(new ErrorHander("Lead is not Avilable of This user", 201));
+    }
+
+    res.status(200).json({
+      success: true,
+      lead,
+    });
+  }
+);
+
+exports.getLeadbyGroupLeaderidandwithoutstatus = catchAsyncErrors(
+  async (req, res, next) => {
+    const { assign_to_agent } = req.body;
+    if (!assign_to_agent) {
+      return next(new ErrorHander("assign_to_agent is required..!", 404));
+    }
+    const [agentsByAssigntl, agentsById] = await Promise.all([
+      agent.find({ assigntl: assign_to_agent }),
+      agent.find({ _id: assign_to_agent }),
+    ]);
+
+    const agentIdsByAssigntl = agentsByAssigntl.map(agent => agent._id);
+    const agentsWithMatchingAssigntl = await agent.find({
+      assigntl: { $in: agentIdsByAssigntl }
+    });
+
+    const allAgents = [...agentsByAssigntl, ...agentsById, ...agentsWithMatchingAssigntl];
+    // Merge the results into a single array
+    // const allAgents = [...agentsByAssigntl, ...agentsById];
+    if (allAgents.length < 1) {
+      return next(new ErrorHander("No Lead..!", 404));
+    }
+    const matchConditions = {
+      assign_to_agent: {
+        $in: allAgents.map((agent) => new ObjectId(agent._id)),
+      },
     };
     const lead = await Lead.aggregate([
       {
@@ -1060,10 +1501,10 @@ exports.getLeadbyTeamLeaderidandwithoutstatus = catchAsyncErrors(
       {
         $match: {
           status: {
-             $nin: [
+            $nin: [
               new ObjectId("65a904e04473619190494482"),
               new ObjectId("65a904ed4473619190494484"),
-              new ObjectId("65a904fc4473619190494486")
+              new ObjectId("65a904fc4473619190494486"),
             ],
           },
         },
@@ -1087,56 +1528,34 @@ exports.getLeadbyTeamLeaderidandwithoutstatus = catchAsyncErrors(
   }
 );
 
-///////get All ScheduleEvent Lead 
-exports.getLeadbyScheduleEventid = catchAsyncErrors(
+////////get All Lead According to Team Leader  Without Won Loss Lead
+exports.getLeadbyTeamLeaderidandwithoutstatus = catchAsyncErrors(
   async (req, res, next) => {
-    const { assign_to_agent, status_id, role } = req.body;
-    const currentDate = new Date();
-    currentDate.setHours(currentDate.getHours() + 5);
-    currentDate.setMinutes(currentDate.getMinutes() + 30);
-    const formattedDate1 = currentDate.toISOString();
-    const targetDate = new Date(formattedDate1);
-    const targetDateOnly = new Date(targetDate.toISOString().split('T')[0]);
-    const nextDate = new Date(targetDate);
-    nextDate.setDate(nextDate.getDate() + 1); // Get next day from targetDate
-    let matchConditions = {};
-   
-    if (role==='TeamLeader') {
-    
-        const [agentsByAssigntl, agentsById] = await Promise.all([
-            agent.find({ assigntl: assign_to_agent }),
-            agent.find({ _id: assign_to_agent })
-        ]);
-        const allAgents = [...agentsByAssigntl, ...agentsById];
-        matchConditions.assign_to_agent = { $in: allAgents.map(agent => new ObjectId(agent._id)) };
-    } else if (role==='user') {
-        matchConditions.assign_to_agent = new ObjectId(assign_to_agent);
+    const { assign_to_agent } = req.body;
+    if (!assign_to_agent) {
+      return next(new ErrorHander("assign_to_agent is required..!", 404));
     }
+    // const allAgents = await agent.find({ assigntl: assign_to_agent });
+    const [agentsByAssigntl, agentsById] = await Promise.all([
+      agent.find({ assigntl: assign_to_agent }),
+      agent.find({ _id: assign_to_agent }),
+    ]);
 
-    matchConditions.$or = [
-        {
-            $expr: {
-                $eq: [
-                    { $dateToString: { format: "%Y-%m-%d", date: "$followup_date" } },
-                    { $dateToString: { format: "%Y-%m-%d", date: targetDateOnly } }
-                ]
-            }
-        },
-        {
-            $expr: {
-                $eq: [
-                    { $dateToString: { format: "%Y-%m-%d", date: "$followup_date" } },
-                    { $dateToString: { format: "%Y-%m-%d", date: nextDate } }
-                ]
-            }
-        }
-    ];
-    
+    // Merge the results into a single array
+    const allAgents = [...agentsByAssigntl, ...agentsById];
+    if (allAgents.length < 1) {
+      return next(new ErrorHander("No Lead..!", 404));
+    }
+    const matchConditions = {
+      assign_to_agent: {
+        $in: allAgents.map((agent) => new ObjectId(agent._id)),
+      },
+    };
     const lead = await Lead.aggregate([
       {
         $match: matchConditions,
       },
-     
+
       {
         $lookup: {
           from: "crm_agents",
@@ -1224,11 +1643,17 @@ exports.getLeadbyScheduleEventid = catchAsyncErrors(
           as: "lead_source_details",
         },
       },
+      /////for  loss and won status remove
       {
         $match: {
-          status: new ObjectId(status_id),
-           },
-        
+          status: {
+            $nin: [
+              new ObjectId("65a904e04473619190494482"),
+              new ObjectId("65a904ed4473619190494484"),
+              new ObjectId("65a904fc4473619190494486"),
+            ],
+          },
+        },
       },
 
       {
@@ -1249,6 +1674,165 @@ exports.getLeadbyScheduleEventid = catchAsyncErrors(
   }
 );
 
+///////get All ScheduleEvent Lead
+exports.getLeadbyScheduleEventid = catchAsyncErrors(async (req, res, next) => {
+  const { assign_to_agent, status_id, role } = req.body;
+  const currentDate = new Date();
+  currentDate.setHours(currentDate.getHours() + 5);
+  currentDate.setMinutes(currentDate.getMinutes() + 30);
+  const formattedDate1 = currentDate.toISOString();
+  const targetDate = new Date(formattedDate1);
+  const targetDateOnly = new Date(targetDate.toISOString().split("T")[0]);
+  const nextDate = new Date(targetDate);
+  nextDate.setDate(nextDate.getDate() + 1); // Get next day from targetDate
+  let matchConditions = {};
+
+  if (role === "TeamLeader") {
+    const [agentsByAssigntl, agentsById] = await Promise.all([
+      agent.find({ assigntl: assign_to_agent }),
+      agent.find({ _id: assign_to_agent }),
+    ]);
+    const allAgents = [...agentsByAssigntl, ...agentsById];
+    matchConditions.assign_to_agent = {
+      $in: allAgents.map((agent) => new ObjectId(agent._id)),
+    };
+  } else if (role === "user") {
+    matchConditions.assign_to_agent = new ObjectId(assign_to_agent);
+  }
+
+  matchConditions.$or = [
+    {
+      $expr: {
+        $eq: [
+          { $dateToString: { format: "%Y-%m-%d", date: "$followup_date" } },
+          { $dateToString: { format: "%Y-%m-%d", date: targetDateOnly } },
+        ],
+      },
+    },
+    {
+      $expr: {
+        $eq: [
+          { $dateToString: { format: "%Y-%m-%d", date: "$followup_date" } },
+          { $dateToString: { format: "%Y-%m-%d", date: nextDate } },
+        ],
+      },
+    },
+  ];
+
+  const lead = await Lead.aggregate([
+    {
+      $match: matchConditions,
+    },
+
+    {
+      $lookup: {
+        from: "crm_agents",
+        let: { assign_to_agentString: "$assign_to_agent" },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $eq: ["$_id", { $toObjectId: "$$assign_to_agentString" }],
+              },
+            },
+          },
+          {
+            $project: {
+              agent_name: 1,
+            },
+          },
+        ],
+        as: "agent_details",
+      },
+    },
+
+    {
+      $lookup: {
+        from: "crm_product_services",
+        let: { serviceString: "$service" },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $eq: ["$_id", { $toObjectId: "$$serviceString" }],
+              },
+            },
+          },
+          {
+            $project: {
+              product_service_name: 1,
+            },
+          },
+        ],
+        as: "service_details",
+      },
+    },
+
+    {
+      $lookup: {
+        from: "crm_statuses",
+        let: { statusString: "$status" },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $eq: ["$_id", { $toObjectId: "$$statusString" }],
+              },
+            },
+          },
+          {
+            $project: {
+              status_name: 1,
+            },
+          },
+        ],
+        as: "status_details",
+      },
+    },
+
+    {
+      $lookup: {
+        from: "crm_lead_sources",
+        let: { lead_sourceString: "$lead_source" },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $eq: ["$_id", { $toObjectId: "$$lead_sourceString" }],
+              },
+            },
+          },
+          {
+            $project: {
+              lead_source_name: 1,
+            },
+          },
+        ],
+        as: "lead_source_details",
+      },
+    },
+    {
+      $match: {
+        status: new ObjectId(status_id),
+      },
+    },
+
+    {
+      $sort: {
+        followup_date: 1,
+      },
+    },
+  ]);
+
+  if (lead.length == 0) {
+    return next(new ErrorHander("Lead is not Avilable of This user", 201));
+  }
+
+  res.status(200).json({
+    success: true,
+    lead,
+  });
+});
 
 //// get Lead By Id
 
@@ -1386,8 +1970,7 @@ exports.BulkLeadUpdate = catchAsyncErrors(async (req, res, next) => {
     const update_data = {
       assign_to_agent: Leadagent?.agent,
       status: LeadStatus?.status,
-      type:'followup',
-
+      type: "followup",
     };
     return Lead.updateOne(condition, update_data);
   });
@@ -1400,9 +1983,8 @@ exports.BulkLeadUpdate = catchAsyncErrors(async (req, res, next) => {
     message: "Leads have been successfully updated",
   });
 });
-/////// Lead Transfer To Other Agent 
+/////// Lead Transfer To Other Agent
 exports.LeadTransfer = catchAsyncErrors(async (req, res, next) => {
-
   const { totransfer, oftransfer } = req.body;
   const leads = await Lead.find({ assign_to_agent: oftransfer });
   if (leads.length === 0) {
@@ -1429,11 +2011,10 @@ exports.LeadTransfer = catchAsyncErrors(async (req, res, next) => {
 exports.getAdvanceFillter = catchAsyncErrors(async (req, res, next) => {
   const { agent, Status, startDate, endDate, user_id, role } = req.body;
 
-
-  if (role === 'admin') {
+  if (role === "admin") {
     const matchConditions = {};
     if (agent) {
-      if (agent == 'Unassigne') {
+      if (agent == "Unassigne") {
         matchConditions.assign_to_agent = null;
       } else {
         const agentObjectId = new ObjectId(agent);
@@ -1554,7 +2135,7 @@ exports.getAdvanceFillter = catchAsyncErrors(async (req, res, next) => {
       lead,
     });
   }
-  if (role === 'user') {
+  if (role === "user") {
     const matchConditions = {};
 
     const agentObjectId = new ObjectId(user_id);
@@ -1674,23 +2255,20 @@ exports.getAdvanceFillter = catchAsyncErrors(async (req, res, next) => {
       lead,
     });
   }
-  if (role === 'TeamLeader') {
+  if (role === "TeamLeader") {
     const matchConditions = {};
     if (!agent) {
       const allUsers = await Agentss.find({ assigntl: user_id });
-      const users = allUsers.map(user => user?._id); // Extracting user IDs from the fetched users
+      const users = allUsers.map((user) => user?._id); // Extracting user IDs from the fetched users
       matchConditions.assign_to_agent = { $in: users };
-
     } else {
-      if (agent == 'Unassigne') {
+      if (agent == "Unassigne") {
         matchConditions.assign_to_agent = null;
       } else {
         const agentObjectId = new ObjectId(agent);
         matchConditions.assign_to_agent = agentObjectId;
       }
     }
-
-
 
     if (Status) {
       const StatusObjectId = new ObjectId(Status);
@@ -1806,13 +2384,10 @@ exports.getAdvanceFillter = catchAsyncErrors(async (req, res, next) => {
       lead,
     });
   }
-
-
-
 });
 
 //////  Bulk Excel Uplode
- 
+
 exports.BulkLeadUplodeExcel = catchAsyncErrors(async (req, res, next) => {
   try {
     const fileBuffer = req.file.buffer;
@@ -1858,8 +2433,6 @@ exports.UpdateLeadByLeadId = catchAsyncErrors(async (req, res, next) => {
   });
 });
 
-
-
 ////////// Lead Attechment History
 exports.leadattechmenthistory = catchAsyncErrors(async (req, res, next) => {
   const lead = await LeadAttechment.find({ lead_id: req.params.id });
@@ -1869,38 +2442,34 @@ exports.leadattechmenthistory = catchAsyncErrors(async (req, res, next) => {
   res.status(200).json({
     success: true,
     message: "lead  Has Been Get Successfully",
-    lead
-  })
-
-})
+    lead,
+  });
+});
 
 ////////// Lead Attechment History Delete
 
-exports.deleteLeadAttechmentHistory = catchAsyncErrors(async (req, res, next) => {
-  const lead = await LeadAttechment.find({ _id: req.params.id });
-  if (!lead) {
-    return next(new ErrorHander("lead is not found"));
+exports.deleteLeadAttechmentHistory = catchAsyncErrors(
+  async (req, res, next) => {
+    const lead = await LeadAttechment.find({ _id: req.params.id });
+    if (!lead) {
+      return next(new ErrorHander("lead is not found"));
+    }
+    await LeadAttechment.deleteOne();
+    res.status(200).json({
+      success: true,
+      message: "lead  Has Been Delete Successfully",
+      lead,
+    });
   }
-  await LeadAttechment.deleteOne();
-  res.status(200).json({
-    success: true,
-    message: "lead  Has Been Delete Successfully",
-    lead
-  })
-});
+);
 
-//////////  User Wish Active Lead 
-exports.ActiveLeadUserWish = catchAsyncErrors(async (req, res, next) => {
-
-});
-
-
+//////////  User Wish Active Lead
+exports.ActiveLeadUserWish = catchAsyncErrors(async (req, res, next) => { });
 
 /////// getAllUnassignLead sarch Api
 exports.getAllUnassignLead = catchAsyncErrors(async (req, res, next) => {
   const matchConditions = {};
   matchConditions.assign_to_agent = null;
-
 
   const lead = await Lead.aggregate([
     {

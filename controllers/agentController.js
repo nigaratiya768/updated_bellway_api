@@ -258,6 +258,42 @@ exports.EditAgentDetails = catchAsyncErrors(async (req, res, next) => {
 
 
 })
+exports.changePassword = async (req, res) => {
+  const { agent_email, currentPassword, newPassword } = req.body;
+
+  try {
+    // Validate request body
+    if (!agent_email || !currentPassword || !newPassword) {
+      return res.status(400).json({ success: false, message: "Please provide all required fields" });
+    }
+
+    // Find the agent by email and include the password field
+    const agent = await Agent.findOne({ agent_email }).select('+agent_password');
+
+    // Check if the agent exists and has the admin role
+    if (!agent || agent.role !== 'admin') {
+      return res.status(403).json({ success: false, message: "Only admins can change passwords" });
+    }
+
+    // Trim current password and compare
+    const isPasswordCorrect = await bcrypt.compare(currentPassword.trim(), agent.agent_password);
+    if (!isPasswordCorrect) {
+      return res.status(401).json({ success: false, message: "Current password is incorrect" });
+    }
+
+    // Hash the new password and update it
+    agent.agent_password = await bcrypt.hash(newPassword.trim(), 10);
+    await agent.save();
+
+    // Respond with success message
+    res.status(200).json({ success: true, message: "Password changed successfully" });
+  } catch (error) {
+    // Handle errors and respond with a generic error message
+    console.error("Error changing password:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
 
 
 

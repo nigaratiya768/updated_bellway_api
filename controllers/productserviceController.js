@@ -7,20 +7,42 @@
 
 
  /// creat Prroduct & Service
-     exports.Add_Product_Service = catchAsyncErrors(async (req, res, next) => {
+    //  exports.Add_Product_Service = catchAsyncErrors(async (req, res, next) => {
       
     
-      const product_service = await Product_Service.create(req.body);
+    //   const product_service = await Product_Service.create(req.body);
     
-      res.status(201).json({
-        success: true,
-        message:"Product & Service  Has Been Added Successfully",
-        product_service,
-      });   
+    //   res.status(201).json({
+    //     success: true,
+    //     message:"Product & Service  Has Been Added Successfully",
+    //     product_service,
+    //   });   
     
      
+    // });
+    exports.Add_Product_Service = catchAsyncErrors(async (req, res, next) => {
+      
+      const file=req.file;
+    
+     
+      const product_service_data = {
+        payment: req.body.payment,
+        product_service_name: req.body.product_service_name,
+        set_up_fee: req.body.set_up_fee,
+        file_path: file.path,
+      };
+    
+      // Insert the product/service into the database
+      const product_service = await Product_Service.create(product_service_data);
+    
+      // Return a success response
+      res.status(201).json({
+        success: true,
+        message: "Product & Service has been added successfully",
+        product_service,
+      });
     });
-
+    
     //// Delete Product & Service
 
     exports.Delete_Product_service=catchAsyncErrors(async (req,res,next)=>{

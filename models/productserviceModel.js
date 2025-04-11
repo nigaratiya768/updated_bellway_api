@@ -49,6 +49,10 @@ product_subs_name:{
     type:String, 
      trim:true
 },
+file_path: {
+    type: String,
+    trim: true,
+  },
 
 },
 {

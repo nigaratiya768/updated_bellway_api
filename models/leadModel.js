@@ -58,6 +58,9 @@ const leadSchema = new mongoose.Schema({
     type: String,
     trim: true,
   },
+  recived_from:{
+    type: String,
+  },
   add_to_calender: {
     type: String,
     trim: true,
@@ -182,6 +185,11 @@ const leadSchema = new mongoose.Schema({
   type: {
     type: String,
   },
+  disposition: {
+    type: String,
+    trim: true,
+    default: 'N/A',
+  }
 });
 
 module.exports = mongoose.model("crm_lead", leadSchema);
