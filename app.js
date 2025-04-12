@@ -32,7 +32,8 @@ const smsreport = require("./routes/smsRoute");
 // const updateandsavenotification1=require('./routes/sentNotificationWebRoute')
 const auth = require("./middleware/auth");
 const { loginAgent } = require("./controllers/agentController");
-const { Add_housing_Lead} = require("./controllers/leadController");
+const { Add_housing_Lead } = require("./controllers/leadController");
+const attendence_service = require("./routes/attendenceRoute");
 
 scheduleJob1();
 // housingapi();
@@ -41,6 +42,7 @@ app.post("/api/v1/agent_login", loginAgent);
 app.post("/api/v1/add_housing_Lead", Add_housing_Lead);
 
 // app.use(auth);
+app.use("/api/v1/", attendence_service);
 app.use("/api/v1/", agent);
 app.use("/api/v1/", product_service);
 app.use("/api/v1/", lead_source);
