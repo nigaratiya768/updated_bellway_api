@@ -1,6 +1,7 @@
 const agentModel = require("../models/agentModel");
 const { Attendence } = require("../models/attendenceModel");
-
+const send = require("../notification_service/notificationService");
+const moment = require("moment");
 const addAttendence = async (req, res) => {
   try {
     const { user_id, attendence_date, entry_time, exit_time } = req.body;
@@ -13,6 +14,28 @@ const addAttendence = async (req, res) => {
       entry_time,
       exit_time,
     });
+    const user = await agentModel.findOne({ _id: user_id });
+    console.log("user", user);
+    if (user.role == "GroupLeader") {
+      //send notification to admin
+    }
+    if (user.role == "TeamLeader") {
+      //send notification to groupleader
+
+      attendence.approved_by = user.assigntl;
+      send(user.assigntl, {
+        title: "attendence notification",
+        description: `${user.agent_name} waiting for attendece approval`,
+      });
+    }
+    if (user.role == "user") {
+      //send notification to teamleader
+      attendence.approved_by = user.assigntl;
+      send(user.assigntl, {
+        title: "attendence notification",
+        description: `${user.agent_name} waiting for attendece approval`,
+      });
+    }
     await attendence.save();
     return res.status(200).json({ msg: "attendence done" });
   } catch (error) {
@@ -40,7 +63,9 @@ const getAttendences = async (req, res) => {
   try {
     const { start_date, end_date, user_id } = req.query;
     let attendences = [];
+
     if (user_id && start_date && end_date) {
+      conosle.log("user_id", user_id);
       const startDate = new Date(start_date);
       const endDate = new Date(end_date);
       console.log("user and date");
@@ -87,9 +112,78 @@ const getAttendencesByUser = async (req, res) => {
   }
 };
 
+const getAttendenceByApproval = async (req, res) => {
+  try {
+    const approvedById = req.query.user_id;
+    const {
+      employee_id = undefined,
+      start_date = new Date(),
+      end_date = new Date(),
+    } = req.query;
+    let attendences = [];
+    if (!approvedById) {
+      return res.status(400).json({ msg: "please enter user id" });
+    }
+    console.log("user id approved", approvedById);
+    console.log("query date", start_date, "end date", end_date);
+    const user = await agentModel.findOne({ _id: approvedById });
+    const startDate = moment(new Date(start_date), "YYYY-MM-DD")
+      .startOf("day")
+      .toDate();
+    const endDate = moment(new Date(end_date), "YYYY-MM-DD")
+      .endOf("day")
+      .toDate();
+
+    console.log("start date", startDate);
+    console.log("end date", endDate);
+    console.log("employee_id", employee_id);
+    if (user.role == "admin") {
+      attendences = await Attendence.find({
+        ...(employee_id && employee_id != "undefined"
+          ? { user_id: employee_id }
+          : {}),
+        entry_time: {
+          $gte: startDate,
+          $lte: endDate,
+        },
+      }).populate("user_id");
+    } else {
+      attendences = await Attendence.find({
+        approved_by: approvedById,
+        entry_time: {
+          $gte: startDate,
+          $lte: endDate,
+        },
+      }).populate("user_id");
+    }
+
+    return res.status(200).json({ attendences });
+  } catch (error) {
+    console.log("error", error);
+    return res.status(500).json({ msg: "server error" });
+  }
+};
+
 const makeApproved = async (req, res) => {
   try {
-  } catch (error) {}
+    const { _id, is_approved } = req.body;
+    const approvedAttendence = await Attendence.findOneAndUpdate(
+      { _id },
+      { is_approved: is_approved }
+    );
+
+    const user = await agentModel.findOne({ _id: approvedAttendence.user_id });
+
+    const status = is_approved ? "approved" : "rejected";
+    send(approvedAttendence.user_id, {
+      title: "Attendence status",
+      description: `${user.agent_name}, your attendence is ` + status,
+    });
+    return res.status(200).json({ msg: "attendence updated" });
+  } catch (error) {
+    console.log("error in makeApproved", error);
+    return res.status(500).json({ msg: "server error" });
+  }
 };
 
 const getAttendencesByTeamLeader = async () => {
@@ -104,10 +198,29 @@ const getAttendencesByTeamLeader = async () => {
   }
 };
 
+const updateExitTime = async (req, res) => {
+  try {
+    const { user_id } = req.body;
+    const attendence_date = moment().format("DD-MM-YYYY");
+    let updateAttendence = await Attendence.findOneAndUpdate(
+      { user_id, attendence_date },
+      { exit_time: new Date() }
+    );
+
+    return res.status(200).json(updateAttendence);
+  } catch (error) {
+    console.log("error in logOut", error);
+    return res.status(500).json({ msg: "server error" });
+  }
+};
+
 const getAttendencesByGroupLeader = () => {};
 module.exports = {
   addAttendence,
   updateAttendence,
   getAttendences,
   getAttendencesByUser,
+  getAttendenceByApproval,
+  makeApproved,
+  updateExitTime,
 };

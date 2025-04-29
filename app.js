@@ -6,7 +6,7 @@ var cors = require("cors");
 const errorMiddleware = require("./middleware/error");
 const scheduleJob1 = require("./controllers/sentNotificationWebController");
 // const housingapi=require("./controllers/housingapiControllers");
-
+require("./jobs/jobs");
 app.use(useragent.express());
 app.use(express.json());
 app.use(cookieParser());
@@ -35,6 +35,8 @@ const { loginAgent } = require("./controllers/agentController");
 const { Add_housing_Lead } = require("./controllers/leadController");
 const attendence_service = require("./routes/attendenceRoute");
 
+const push_notification_service = require("./routes/pushNotificationRoute");
+
 scheduleJob1();
 // housingapi();
 app.use(cors());
@@ -43,6 +45,7 @@ app.post("/api/v1/add_housing_Lead", Add_housing_Lead);
 
 // app.use(auth);
 app.use("/api/v1/", attendence_service);
+app.use("/api/v1/", push_notification_service);
 app.use("/api/v1/", agent);
 app.use("/api/v1/", product_service);
 app.use("/api/v1/", lead_source);

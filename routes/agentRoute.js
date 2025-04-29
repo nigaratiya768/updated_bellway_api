@@ -12,6 +12,7 @@ const {
   getAllAgentByTeamLeader,
   getAllAgentofATeamByAgent,
   changePassword,
+  saveFCMToken,
 } = require("../controllers/agentController");
 
 const router = express.Router();
@@ -29,4 +30,5 @@ router.route("/agent_delete/:id").delete(deleteAgent);
 router.route("/update_agent_access/:id").put(updateClientAccess);
 router.route("/EditAgentDetails/:id").put(EditAgentDetails);
 router.route("/password/change").post(changePassword);
+router.route("/save_fmc_token").put(saveFCMToken);
 module.exports = router;

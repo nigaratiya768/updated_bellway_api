@@ -68,7 +68,9 @@ const agentSchema = new mongoose.Schema(
       type: String,
       default: "no",
     },
-
+    device_token: {
+      type: String,
+    },
     resetPasswordToken: String,
     resetPasswordExpire: Date,
   },

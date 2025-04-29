@@ -8,11 +8,19 @@ const notificationSchema = new mongoose.Schema({
   description: {
     type: String,
   },
+  date: {
+    type: Date,
+    default: Date.now(),
+  },
   from_agent_id: {
     type: String,
   },
   to_agent_id: {
     type: String,
+  },
+  notification_type: {
+    type: String,
+    default: "normal",
   },
 });
 

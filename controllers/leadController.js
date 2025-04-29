@@ -13,6 +13,7 @@ const upload = multer();
 const xlsx = require("xlsx");
 const FollowupLead = require("../models/followupModel");
 const LeadAttechment = require("../models/leadattechmentModel");
+const send = require("../notification_service/notificationService");
 
 exports.Add_Lead = catchAsyncErrors(async (req, res, next) => {
   const { contact_no } = req.body;
@@ -40,10 +41,14 @@ exports.Add_Lead = catchAsyncErrors(async (req, res, next) => {
     followup_date: followup_date,
     followup_desc: followup_desc,
   };
+
   const followup_lead = await FollowupLead.create(update_data);
   console.log(followup_lead);
-
-  res.status(201).json({
+  send(assign_to_agent, {
+    title: "New lead added",
+    description: "New lead assigned to you",
+  });
+  return res.status(201).json({
     success: true,
     message: "lead  Has Been Added Successfully",
     lead,
@@ -63,14 +68,14 @@ exports.Add_housing_Lead = catchAsyncErrors(async (req, res, next) => {
       });
     }
 
-    const recived_from = 'housing';
-    const service = '66a8e474fe247f0debc9a593'; 
-    const lead_source = '66a8e474fe247f0debc9a593';  
+    const recived_from = "housing";
+    const service = "66a8e474fe247f0debc9a593";
+    const lead_source = "66a8e474fe247f0debc9a593";
 
     const data = {
       recived_from,
-      service,  
-      lead_source,  
+      service,
+      lead_source,
       ...req.body,
     };
 
@@ -85,7 +90,6 @@ exports.Add_housing_Lead = catchAsyncErrors(async (req, res, next) => {
     next(error);
   }
 });
-
 
 exports.getBestAndWorstPerformanceService = catchAsyncErrors(
   async (req, res, next) => {
@@ -299,7 +303,7 @@ exports.getAllLead = catchAsyncErrors(async (req, res, next) => {
 
     {
       $sort: {
-        followup_date: 1, // 1 for ascending(123) order, -1 for descending(321) order
+        created: 1, // followup_date: -1, // 1 for ascending(123) order, -1 for descending(321) order
       },
     },
   ]);
@@ -312,136 +316,142 @@ exports.getAllLead = catchAsyncErrors(async (req, res, next) => {
 });
 
 //////// get All New Lead  (For New Leads) (For Admin)
-exports.getAllNewLead = catchAsyncErrors(async (req, res, next) => {
-  let lead = await Lead.aggregate([
-    {
-      $lookup: {
-        from: "crm_agents",
-        let: { assign_to_agentString: "$assign_to_agent" },
-        pipeline: [
-          {
-            $match: {
-              $expr: {
-                $eq: ["$_id", { $toObjectId: "$$assign_to_agentString" }],
+exports.getAllNewLead = async (req, res, next) => {
+  try {
+    let lead = await Lead.aggregate([
+      {
+        $lookup: {
+          from: "crm_agents",
+          let: { assign_to_agentString: "$assign_to_agent" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $eq: ["$_id", { $toObjectId: "$$assign_to_agentString" }],
+                },
               },
             },
-          },
-          {
-            $project: {
-              agent_name: 1,
-            },
-          },
-        ],
-        as: "agent_details",
-      },
-    },
-
-    {
-      $lookup: {
-        from: "crm_product_services",
-        let: { serviceString: "$service" },
-        pipeline: [
-          {
-            $match: {
-              $expr: {
-                $eq: ["$_id", { $toObjectId: "$$serviceString" }],
+            {
+              $project: {
+                agent_name: 1,
               },
             },
-          },
-          {
-            $project: {
-              product_service_name: 1,
-            },
-          },
-        ],
-        as: "service_details",
+          ],
+          as: "agent_details",
+        },
       },
-    },
 
-    {
-      $lookup: {
-        from: "crm_statuses",
-        let: { statusString: "$status" },
-        pipeline: [
-          {
-            $match: {
-              $expr: {
-                $eq: ["$_id", { $toObjectId: "$$statusString" }],
+      {
+        $lookup: {
+          from: "crm_product_services",
+          let: { serviceString: "$service" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $eq: ["$_id", { $toObjectId: "$$serviceString" }],
+                },
               },
             },
-          },
-          {
-            $project: {
-              status_name: 1,
-            },
-          },
-        ],
-        as: "status_details",
-      },
-    },
-
-    {
-      $lookup: {
-        from: "crm_lead_sources",
-        // localField:'lead_source',
-        // foreignField:'_id',
-        let: { lead_sourceString: "$lead_source" },
-        pipeline: [
-          {
-            $match: {
-              $expr: {
-                $eq: ["$_id", { $toObjectId: "$$lead_sourceString" }],
-                // $cond: {
-                //   if: { $ne: ["$$lead_sourceString", ""] },
-                //   then: { $eq: ["$_id", { $toObjectId: "$$lead_sourceString" }] },
-                //   else: false,
-                // },
+            {
+              $project: {
+                product_service_name: 1,
               },
             },
-          },
-          {
-            $project: {
-              lead_source_name: 1,
+          ],
+          as: "service_details",
+        },
+      },
+
+      {
+        $lookup: {
+          from: "crm_statuses",
+          let: { statusString: "$status" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $eq: ["$_id", { $toObjectId: "$$statusString" }],
+                },
+              },
             },
-          },
-        ],
-        as: "lead_source_details",
+            {
+              $project: {
+                status_name: 1,
+              },
+            },
+          ],
+          as: "status_details",
+        },
       },
-    },
-    {
-      $match: {
-        type: { $ne: "excel" }, // Filter out documents where the type is 'excel'
+
+      {
+        $lookup: {
+          from: "crm_lead_sources",
+          // localField:'lead_source',
+          // foreignField:'_id',
+          let: { lead_sourceString: "$lead_source" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $eq: ["$_id", { $toObjectId: "$$lead_sourceString" }],
+                  // $cond: {
+                  //   if: { $ne: ["$$lead_sourceString", ""] },
+                  //   then: { $eq: ["$_id", { $toObjectId: "$$lead_sourceString" }] },
+                  //   else: false,
+                  // },
+                },
+              },
+            },
+            {
+              $project: {
+                lead_source_name: 1,
+              },
+            },
+          ],
+          as: "lead_source_details",
+        },
       },
-    },
-    {
-      $sort: {
-        followup_date: 1, // 1 for ascending(123) order, -1 for descending(321) order
+      {
+        $match: {
+          type: { $ne: "excel" }, // Filter out documents where the type is 'excel'
+        },
       },
-    },
-  ]);
-  ////  get only first followup lead
-  const filteredLeads = [];
+      {
+        $sort: {
+          followup_date: 1, // 1 for ascending(123) order, -1 for descending(321) order
+        },
+      },
+    ]);
+    ////  get only first followup lead
+    const filteredLeads = [];
 
-  for (const singleLead of lead) {
-    const lead_id = singleLead?._id;
+    for (const singleLead of lead) {
+      const lead_id = singleLead?._id;
 
-    const leadstatusid = singleLead?.status;
+      const leadstatusid = singleLead?.status || "";
 
-    if (leadstatusid.toString() === "65a904fc4473619190494486") {
-      filteredLeads.push(singleLead);
-    } else {
-      const count = await FollowupLead.countDocuments({ lead_id });
-      if (count <= 1) {
+      if (leadstatusid.toString() === "67b30dd5bebd856bbff516e8") {
         filteredLeads.push(singleLead);
       }
+      // else {
+      //   const count = await FollowupLead.countDocuments({ lead_id });
+      //   if (count <= 1) {
+      //     filteredLeads.push(singleLead);
+      //   }
+      // }
     }
-  }
 
-  res.status(200).json({
-    success: true,
-    lead: filteredLeads,
-  });
-});
+    return res.status(200).json({
+      success: true,
+      lead: filteredLeads,
+    });
+  } catch (error) {
+    console.log("error in getallnewleads", error);
+    return res.status(500).json({ success: false, msg: "server error" });
+  }
+};
 
 //////// get All New Lead  (For New Leads) (For Agent)
 exports.getAllNewLeadBYAgentId = catchAsyncErrors(async (req, res, next) => {
@@ -964,7 +974,7 @@ exports.getLeadbyagentidandwithstatus = catchAsyncErrors(
 //     if (!assign_to_agent) {
 //       return next(new ErrorHander("assign_to_agent is required..!", 404));
 //     }
-//    // juhi 
+//    // juhi
 //     const [agentsByAssigntl, agentsById] = await Promise.all([
 //       agent.find({ assigntl: assign_to_agent }),
 //       agent.find({ _id: assign_to_agent }),
@@ -1235,7 +1245,6 @@ exports.getLeadbyTeamLeaderidandwithstatus = catchAsyncErrors(
 // get lead According to Group Leader
 exports.getLeadbyGroupLeaderidandwithstatus = catchAsyncErrors(
   async (req, res, next) => {
-
     const { assign_to_agent } = req.body;
     if (!assign_to_agent) {
       return next(new ErrorHander("assign_to_agent is required..!", 404));
@@ -1246,19 +1255,23 @@ exports.getLeadbyGroupLeaderidandwithstatus = catchAsyncErrors(
       agent.find({ _id: assign_to_agent }),
     ]);
 
-    const agentIdsByAssigntl = agentsByAssigntl.map(agent => agent._id);
+    const agentIdsByAssigntl = agentsByAssigntl.map((agent) => agent._id);
     console.log("Agents by assign_to_agent (assigntl):", agentIdsByAssigntl);
 
     // Now, find agents whose 'assigntl' field matches any of the agent IDs in 'agentIdsByAssigntl'
     const agentsWithMatchingAssigntl = await agent.find({
-      assigntl: { $in: agentIdsByAssigntl }
+      assigntl: { $in: agentIdsByAssigntl },
     });
 
     console.log("Agents with matching 'assigntl':", agentsWithMatchingAssigntl);
 
     // // Merge the results into a single array
     // const allAgents = [...agentsByAssigntl, ...agentsById];
-    const allAgents = [...agentsByAssigntl, ...agentsById, ...agentsWithMatchingAssigntl];
+    const allAgents = [
+      ...agentsByAssigntl,
+      ...agentsById,
+      ...agentsWithMatchingAssigntl,
+    ];
     if (allAgents.length < 1) {
       return next(new ErrorHander("No Lead..!", 404));
     }
@@ -1273,7 +1286,7 @@ exports.getLeadbyGroupLeaderidandwithstatus = catchAsyncErrors(
       },
 
       {
-        $lookup: { 
+        $lookup: {
           from: "crm_agents",
           let: { assign_to_agentString: "$assign_to_agent" },
           pipeline: [
@@ -1366,7 +1379,7 @@ exports.getLeadbyGroupLeaderidandwithstatus = catchAsyncErrors(
         },
       },
     ]);
-    console.log('Count:', lead.length);
+    console.log("Count:", lead.length);
     if (lead.length == 0) {
       return next(new ErrorHander("Lead is not Avilable of This user", 201));
     }
@@ -1389,12 +1402,16 @@ exports.getLeadbyGroupLeaderidandwithoutstatus = catchAsyncErrors(
       agent.find({ _id: assign_to_agent }),
     ]);
 
-    const agentIdsByAssigntl = agentsByAssigntl.map(agent => agent._id);
+    const agentIdsByAssigntl = agentsByAssigntl.map((agent) => agent._id);
     const agentsWithMatchingAssigntl = await agent.find({
-      assigntl: { $in: agentIdsByAssigntl }
+      assigntl: { $in: agentIdsByAssigntl },
     });
 
-    const allAgents = [...agentsByAssigntl, ...agentsById, ...agentsWithMatchingAssigntl];
+    const allAgents = [
+      ...agentsByAssigntl,
+      ...agentsById,
+      ...agentsWithMatchingAssigntl,
+    ];
     // Merge the results into a single array
     // const allAgents = [...agentsByAssigntl, ...agentsById];
     if (allAgents.length < 1) {
@@ -2464,7 +2481,7 @@ exports.deleteLeadAttechmentHistory = catchAsyncErrors(
 );
 
 //////////  User Wish Active Lead
-exports.ActiveLeadUserWish = catchAsyncErrors(async (req, res, next) => { });
+exports.ActiveLeadUserWish = catchAsyncErrors(async (req, res, next) => {});
 
 /////// getAllUnassignLead sarch Api
 exports.getAllUnassignLead = catchAsyncErrors(async (req, res, next) => {
@@ -2576,3 +2593,35 @@ exports.getAllUnassignLead = catchAsyncErrors(async (req, res, next) => {
     lead,
   });
 });
+
+exports.dashboardLeadStats = async (req, res) => {
+  try {
+    const leadStats = await Lead.aggregate([
+      {
+        $lookup: {
+          from: "crm_statuses",
+          localField: "status",
+          foreignField: "_id",
+          as: "status",
+        },
+      },
+      {
+        $unwind: {
+          path: "$status",
+
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $group: {
+          _id: "$status.status_name",
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+    return res.status(200).json(leadStats);
+  } catch (error) {
+    console.log("error in dashboardLeadStats", error);
+    return res.status(500).json({ msg: "server error" });
+  }
+};

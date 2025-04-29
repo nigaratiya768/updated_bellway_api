@@ -7,6 +7,10 @@ const bcrypt = require("bcryptjs");
 const useragent = require("express-useragent");
 const mongoose = require("mongoose");
 const { Attendence } = require("../models/attendenceModel");
+const agentModel = require("../models/agentModel");
+const send = require("../notification_service/notificationService");
+const moment = require("moment");
+
 exports.createAgent = catchAsyncErrors(async (req, res, next) => {
   const agent = await Agent.create(req.body);
 
@@ -160,6 +164,7 @@ exports.loginAgent = catchAsyncErrors(async (req, res, next) => {
   const agent = await Agent.findOne({ agent_email: email }).select(
     "+agent_password"
   );
+  console.log("agent", agent);
   if (!agent) {
     return next(new ErrorHander("Invalid email Or password", 400));
   }
@@ -173,12 +178,43 @@ exports.loginAgent = catchAsyncErrors(async (req, res, next) => {
   // console.log("Creating JWT token...");
   // const token = agent.getJWTToken();
   // console.log("JWT token created:", token);
-  const attendence = new Attendence({
+  const attendence_date = moment().format("DD-MM-YYYY");
+
+  const hasAttendence = await Attendence.findOne({
     user_id: agent._id,
-    attendence_date: new Date(),
-    entry_time: new Date(),
+    attendence_date,
   });
-  await attendence.save();
+  //const user = await agentModel.findOne({ _id: user_id });
+  //console.log("user", user);
+  if (!hasAttendence) {
+    const attendence = new Attendence({
+      user_id: agent._id,
+      attendence_date: attendence_date,
+      entry_time: new Date(),
+    });
+    if (agent.role == "GroupLeader") {
+      //send notification to admin
+    }
+    if (agent.role == "TeamLeader") {
+      //send notification to groupleader
+
+      attendence.approved_by = agent.assigntl;
+      send(agent.assigntl, {
+        title: "attendence notification",
+        description: `${agent.agent_name} waiting for attendece approval`,
+      });
+    }
+    if (agent.role == "user") {
+      //send notification to teamleader
+      attendence.approved_by = agent.assigntl;
+      send(agent.assigntl, {
+        title: "attendence notification",
+        description: `${agent.agent_name} waiting for attendece approval`,
+      });
+    }
+    await attendence.save();
+  }
+
   sendToken(agent, 200, res);
 });
 /// update Client Access
@@ -318,3 +354,26 @@ exports.changePassword = async (req, res) => {
 exports.forgotPassword = catchAsyncErrors(async (req, res, next) => {
   //    const {email,new_password}=req.body;
 });
+
+exports.saveFCMToken = async (req, res) => {
+  try {
+    const { token, email } = req.body;
+    if (!token) {
+      return res.status(400).json({ msg: "token not found" });
+    }
+    if (!email) {
+      return res.status(400).json({ msg: "email not found" });
+    }
+    let agent = await Agent.findOneAndUpdate(
+      { agent_email: email },
+      { device_token: token }
+    );
+    if (!agent) {
+      return res.status(400).json({ msg: "user not fount" });
+    }
+    return res.status(200).json({ msg: "device token updated" });
+  } catch (error) {
+    console.log("error in saveFCMToken", error);
+    return res.status(500).json({ success: false, msg: "server error" });
+  }
+};

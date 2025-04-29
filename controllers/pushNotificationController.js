@@ -1,8 +1,11 @@
+const notificationModel = require("../models/notificationModel");
 const { NotificationModel } = require("../models/pushNotification");
+const send = require("../notification_service/notificationService");
 
 const addNotification = async (req, res) => {
   try {
     const { title, description, from_agent_id, to_agent_id } = req.body;
+    console.log("req.body", req.body);
     if (!title || !description || !from_agent_id || !to_agent_id) {
       return res.status(400).json({ msg: "enter required field" });
     }
@@ -13,6 +16,7 @@ const addNotification = async (req, res) => {
       to_agent_id,
     });
     await notification.save();
+    send(from_agent_id, notification);
     return res.status(200).json({ msg: "notification saved" });
   } catch (error) {
     console.log("error in addNotification", error);
@@ -21,10 +25,34 @@ const addNotification = async (req, res) => {
 };
 const getNotifications = async (req, res) => {
   try {
-    const notifications = await NotificationModel.find();
+    const user_id = req.query.user_id;
+    const role = req.query.role;
+
+    const notifications =
+      role == "admin"
+        ? await NotificationModel.find()
+        : await NotificationModel.find({
+            to_agent_id: user_id,
+          });
     return res.status(200).json(notifications);
   } catch (error) {
     console.log("error in getNotification", error);
+    return res.status(500).json({ msg: "server error" });
+  }
+};
+
+const getNotificationCount = async (req, res) => {
+  try {
+    const user_id = req.query.user_id;
+    const role = req.query.role;
+    let count =
+      role == "admin"
+        ? await NotificationModel.countDocuments()
+        : await NotificationModel.countDocuments({ to_agent_id: user_id });
+    console.log("count", count);
+    return res.status(200).json({ count });
+  } catch (error) {
+    console.log("error in counting notification", error);
     return res.status(500).json({ msg: "server error" });
   }
 };
@@ -69,4 +97,5 @@ module.exports = {
   getNotifications,
   getNotification,
   updateNotification,
+  getNotificationCount,
 };

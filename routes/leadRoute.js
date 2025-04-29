@@ -21,9 +21,11 @@ const {
   getLeadbyTeamLeaderidandwithstatus,
   getLeadbyTeamLeaderidandwithoutstatus,
   getLeadbyScheduleEventid,
-  getBestAndWorstPerformanceService,Add_housing_Lead,
+  getBestAndWorstPerformanceService,
+  Add_housing_Lead,
   getLeadbyGroupLeaderidandwithstatus,
-  getLeadbyGroupLeaderidandwithoutstatus
+  getLeadbyGroupLeaderidandwithoutstatus,
+  dashboardLeadStats,
 } = require("../controllers/leadController");
 
 const router = express.Router();
@@ -73,6 +75,7 @@ router
 
 router.route("/getLeadbyScheduleEventid").post(getLeadbyScheduleEventid); ///////get All ScheduleEvent Lead
 
+router.route("/dashboardLeadStats").get(dashboardLeadStats);
 // router.route("/BulkLeadUplodeExcel",upload.single('file')).post(BulkLeadUplodeExcel);
 
 module.exports = router;
