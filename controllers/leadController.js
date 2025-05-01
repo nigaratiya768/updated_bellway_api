@@ -14,6 +14,7 @@ const xlsx = require("xlsx");
 const FollowupLead = require("../models/followupModel");
 const LeadAttechment = require("../models/leadattechmentModel");
 const send = require("../notification_service/notificationService");
+const statusModel = require("../models/statusModel");
 
 exports.Add_Lead = catchAsyncErrors(async (req, res, next) => {
   const { contact_no } = req.body;
@@ -2596,29 +2597,47 @@ exports.getAllUnassignLead = catchAsyncErrors(async (req, res, next) => {
 
 exports.dashboardLeadStats = async (req, res) => {
   try {
-    const leadStats = await Lead.aggregate([
+    // const leadStats = await Lead.aggregate([
+    //   {
+    //     $lookup: {
+    //       from: "crm_statuses",
+    //       localField: "status",
+    //       foreignField: "_id",
+    //       as: "status",
+    //     },
+    //   },
+    //   {
+    //     $unwind: {
+    //       path: "$status",
+
+    //       preserveNullAndEmptyArrays: true,
+    //     },
+    //   },
+    //   {
+    //     $group: {
+    //       _id: "$status.status_name",
+    //       count: { $sum: 1 },
+    //     },
+    //   },
+    // ]);
+    const leadStats = await statusModel.aggregate([
       {
         $lookup: {
-          from: "crm_statuses",
-          localField: "status",
-          foreignField: "_id",
-          as: "status",
+          from: "crm_leads", // your main collection
+          localField: "_id",
+          foreignField: "status",
+          as: "leads",
         },
       },
       {
-        $unwind: {
-          path: "$status",
-
-          preserveNullAndEmptyArrays: true,
-        },
-      },
-      {
-        $group: {
-          _id: "$status.status_name",
-          count: { $sum: 1 },
+        $project: {
+          status_name: 1,
+          _id: "$status_name",
+          count: { $size: "$leads" },
         },
       },
     ]);
+    console.log("lead stats", leadStats);
     return res.status(200).json(leadStats);
   } catch (error) {
     console.log("error in dashboardLeadStats", error);
