@@ -15,6 +15,8 @@ const sendToken = require("../utils/jwtToken");
 //     product_service,
 //   });
 
+//REACT_APP_API_URL=https://testbellwayapi.paassionis.in/api/v1
+
 // });
 exports.Add_Product_Service = async (req, res, next) => {
   try {

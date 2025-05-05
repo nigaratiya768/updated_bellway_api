@@ -46,8 +46,12 @@ async function send(userId, notification) {
         },
       };
 
-      const response = await firebase.messaging().send(message);
-      console.log("firebase response: ", response);
+      try {
+        const response = await firebase.messaging().send(message);
+        console.log("firebase response: ", response);
+      } catch (error) {
+        console.log("notification error while sending it", error);
+      }
     }
     //------------code to send notification--------------//
   }

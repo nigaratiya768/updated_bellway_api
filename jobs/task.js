@@ -1,7 +1,7 @@
 const Followup = require("../models/followupModel");
 const send = require("../notification_service/notificationService");
 const Agent = require("../models/agentModel");
-
+const moment = require("moment");
 const getAllOverDueFollowups = async () => {
   try {
     const overDueLeads = await Followup.aggregate([
@@ -95,7 +95,9 @@ exports.tasks = async () => {
       let lead_contact_no = v.lead?.contact_no;
       const notification = {
         title: `Reminder: Follow-up with ${lead}`,
-        description: `You have a pending follow-up with ${lead} scheduled for ${followup_date}. Please review and update.`,
+        description: `You have a pending follow-up with ${lead} scheduled for ${moment(
+          new Date(followup_date)
+        ).format("DD-MM_YYYY")}. Please review and update.`,
       };
       console.log("agent", v.agent);
       if (token) {
