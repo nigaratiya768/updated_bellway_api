@@ -474,41 +474,106 @@ exports.GetUserCallAccordingToGroupLeader = catchAsyncErrors(
 );
 
 /////// Get Call Details BY Date Wise
+// exports.GetAllUserCallLogByDateWise = catchAsyncErrors(
+//   async (req, res, next) => {
+//     const { start_date, end_date,time } = req.body;
+//     try {
+//       const agents = await Agent.find({ role: "user" });
+//       let array = [];
+
+//       await Promise.all(
+//         agents.map(async (agent) => {
+//           const user_id = agent._id; // Assuming _id is the correct property for user_id
+//           let TotalTime = 0; // Reset TotalTime for each user
+
+//           const callDetail = await CallLog.find({
+//             user_id: user_id,
+//             calldate: {
+//               $gte: start_date, // Filter calls with calldate greater than or equal to start_date
+//               $lte: end_date, // Filter calls with calldate less than or equal to end_date
+//             },
+//           });
+
+//           const HigstNoOfCall = await callDetail?.length;
+
+//           callDetail.map((callDetails) => {
+//             TotalTime += parseInt(callDetails?.duration) || 0; // Add the duration for each call
+//           });
+
+//           const AvrageTime = await parseInt(TotalTime / HigstNoOfCall);
+
+//           array.push({
+//             ["user_id"]: agent._id,
+//             ["username"]: agent.agent_name,
+//             ["HigstNoOfCall"]: HigstNoOfCall,
+//             ["TotalTime"]: TotalTime,
+//             ["AvrageTime"]: AvrageTime,
+//           });
+//         })
+//       );
+
+//       res.status(200).json({
+//         success: true,
+//         array,
+//       });
+//     } catch (error) {
+//       next(error); // Pass the error to the error handler
+//     }
+//   }
+// );
+
+// Get Call Details BY Date Wise
 exports.GetAllUserCallLogByDateWise = catchAsyncErrors(
   async (req, res, next) => {
-    const { start_date, end_date } = req.body;
+    const { start_date, end_date, time } = req.body;
+    console.log("getAllUserCallLogByDateWise", req.body);
+
     try {
-      const agents = await Agent.find({ role: "user" });
+      const agents = await Agent.find();
       let array = [];
 
       await Promise.all(
         agents.map(async (agent) => {
-          const user_id = agent._id; // Assuming _id is the correct property for user_id
-          let TotalTime = 0; // Reset TotalTime for each user
+          const user_id = agent._id;
+          let TotalTime = 0;
 
-          const callDetail = await CallLog.find({
-            user_id: user_id,
-            calldate: {
-              $gte: start_date, // Filter calls with calldate greater than or equal to start_date
-              $lte: end_date, // Filter calls with calldate less than or equal to end_date
-            },
-          });
+          // Build query with date and time filters
+          const query = { user_id };
 
-          const HigstNoOfCall = await callDetail?.length;
+          if (start_date && end_date) {
+            query.calldate = {
+              $gte: new Date(start_date),
+              $lte: new Date(end_date),
+            };
+          } else if (start_date) {
+            query.calldate = {
+              $gte: new Date(start_date),
+            };
+          }
 
-          callDetail.map((callDetails) => {
-            TotalTime += parseInt(callDetails?.duration) || 0; // Add the duration for each call
-          });
+          if (time) {
+            query.duration = { $gte: parseInt(time) };
+          }
 
-          const AvrageTime = await parseInt(TotalTime / HigstNoOfCall);
+          const callDetail = await CallLog.find(query);
+          const HigstNoOfCall = callDetail.length;
 
-          array.push({
-            ["user_id"]: agent._id,
-            ["username"]: agent.agent_name,
-            ["HigstNoOfCall"]: HigstNoOfCall,
-            ["TotalTime"]: TotalTime,
-            ["AvrageTime"]: AvrageTime,
-          });
+          // Only proceed if calls match the filter
+          if (HigstNoOfCall > 0) {
+            callDetail.forEach((call) => {
+              TotalTime += parseInt(call.duration) || 0;
+            });
+
+            const AvrageTime = parseInt(TotalTime / HigstNoOfCall);
+
+            array.push({
+              user_id: agent._id,
+              username: agent.agent_name,
+              HigstNoOfCall,
+              TotalTime,
+              AvrageTime,
+            });
+          }
         })
       );
 
@@ -517,7 +582,7 @@ exports.GetAllUserCallLogByDateWise = catchAsyncErrors(
         array,
       });
     } catch (error) {
-      next(error); // Pass the error to the error handler
+      next(error);
     }
   }
 );

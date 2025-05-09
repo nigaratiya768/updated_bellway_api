@@ -12,6 +12,7 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(express.static("public"));
 const agent = require("./routes/agentRoute");
+const geoLocation = require("./routes/crmGeolocationRoute");
 const product_service = require("./routes/productserviceRoute");
 const lead_source = require("./routes/leadsourceRoute");
 const lead_status = require("./routes/statusRoute");
@@ -44,6 +45,7 @@ app.post("/api/v1/agent_login", loginAgent);
 app.post("/api/v1/add_housing_Lead", Add_housing_Lead);
 
 // app.use(auth);
+app.use("/api/v1/", geoLocation);
 app.use("/api/v1/", attendence_service);
 app.use("/api/v1/", push_notification_service);
 app.use("/api/v1/", agent);

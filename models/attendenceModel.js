@@ -17,6 +17,9 @@ const attendenceSchema = new mongoose.Schema({
   approved_by: {
     type: mongoose.Types.ObjectId,
   },
+  current_status: {
+    type: String,
+  },
   entry_time: {
     type: Date,
     required: true,

@@ -65,7 +65,7 @@ const getAttendences = async (req, res) => {
     let attendences = [];
 
     if (user_id && start_date && end_date) {
-      conosle.log("user_id", user_id);
+      console.log("user_id", user_id);
       const startDate = new Date(start_date);
       const endDate = new Date(end_date);
       console.log("user and date");
@@ -93,6 +93,49 @@ const getAttendences = async (req, res) => {
           $lte: endDate,
         },
       });
+      return res.status(200).json({ attendences });
+    }
+  } catch (error) {
+    console.log("error in getAttendences", error);
+    return res.status(500).json({ msg: "server error" });
+  }
+};
+
+const getOurAttendences = async (req, res) => {
+  try {
+    console.log("getour attendence", req.query);
+    const { start_date, end_date, user_id } = req.query;
+    let attendences = [];
+
+    if (user_id && start_date && end_date) {
+      console.log("user_id", user_id);
+
+      const startDate = new Date(start_date);
+      startDate.setDate(startDate.getDate() - 1);
+
+      const endDate = new Date(end_date);
+      console.log("user and date");
+      attendences = await Attendence.find({
+        user_id,
+        // attendence_date: {
+        //   $gte: startDate,
+        //   $lte: endDate,
+        // },
+      }).populate("user_id");
+      console.log("attendences123", attendences);
+      return res.status(200).json({ attendences });
+    }
+    // if (user_id) {
+    //   console.log("user wise");
+    //   attendences = await Attendence.find({ user_id });
+    //   return res.status(200).json({ attendences });
+    // }
+    if (user_id) {
+      console.log("xyzuser_id", user_id);
+      attendences = await Attendence.find({
+        user_id,
+      }).populate("user_id");
+      console.log("attendence", attendences);
       return res.status(200).json({ attendences });
     }
   } catch (error) {
@@ -167,21 +210,44 @@ const getAttendenceByApproval = async (req, res) => {
 const makeApproved = async (req, res) => {
   try {
     const { _id, is_approved } = req.body;
-    const approvedAttendence = await Attendence.findOneAndUpdate(
+    const attendence = await Attendence.findOneAndUpdate(
       { _id },
       { is_approved: is_approved }
     );
 
-    const user = await agentModel.findOne({ _id: approvedAttendence.user_id });
+    const user = await agentModel.findOne({ _id: attendence.user_id });
 
     const status = is_approved ? "approved" : "rejected";
-    send(approvedAttendence.user_id, {
+    send(attendence.user_id, {
       title: "Attendence status",
       description: `${user.agent_name}, your attendence is ` + status,
     });
     return res.status(200).json({ msg: "attendence updated" });
   } catch (error) {
     console.log("error in makeApproved", error);
+    return res.status(500).json({ msg: "server error" });
+  }
+};
+
+const updateCurrentStatus = async (req, res) => {
+  try {
+    console.log("req.body", req.body);
+    const { _id, current_status } = req.body;
+    const attendence_date = moment().format("DD-MM-YYYY");
+    const attendence = await Attendence.findOneAndUpdate(
+      { user_id: _id, attendence_date },
+      { current_status: current_status }
+    );
+    console.log("attendence", attendence);
+    const user = await agentModel.findOne({ _id: attendence.user_id });
+
+    send(user.assigntl, {
+      title: "user current status",
+      description: `${user.agent_name}, is on ` + current_status,
+    });
+    return res.status(200).json({ msg: "current status updated" });
+  } catch (error) {
+    console.log("error updateCurrentStatus", error);
     return res.status(500).json({ msg: "server error" });
   }
 };
@@ -219,8 +285,10 @@ module.exports = {
   addAttendence,
   updateAttendence,
   getAttendences,
+  getOurAttendences,
   getAttendencesByUser,
   getAttendenceByApproval,
   makeApproved,
   updateExitTime,
+  updateCurrentStatus,
 };

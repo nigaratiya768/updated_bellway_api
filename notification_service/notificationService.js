@@ -54,6 +54,8 @@ async function send(userId, notification) {
       }
     }
     //------------code to send notification--------------//
+  } else {
+    console.log("user not found", userId);
   }
 }
 
